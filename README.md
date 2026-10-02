@@ -18,6 +18,10 @@ WebDAV server (conceptually tested against Apache mod_dav / Nextcloud /
    - **Remote folder**: relative path on the server (e.g. `Books`)
    - **Username / password**
    - **Local folder** to sync (your KOReader library)
+
+   Already set up a WebDAV server in KOReader's **Cloud storage**? Use
+   **Import from Cloud storage…** to copy its address, start folder and
+   credentials into the server dialog, then review and **Save**.
 5. Choose the **sync direction** and whether **deletions** should be
    propagated.
 6. **Sync now**.
