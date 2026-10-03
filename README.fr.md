@@ -18,6 +18,11 @@ serveur WebDAV (testé conceptuellement contre Apache mod_dav / Nextcloud /
    - **Dossier distant** : chemin relatif sur le serveur (ex. `Livres`)
    - **Utilisateur / mot de passe**
    - **Dossier local** à synchroniser (ta bibliothèque KOReader)
+
+   Tu as déjà configuré un serveur WebDAV dans le **Stockage cloud** de
+   KOReader ? **Importer depuis Stockage cloud…** recopie son adresse, son
+   dossier de départ et ses identifiants dans la fenêtre du serveur : vérifie
+   puis **Enregistrer**.
 5. Choisis le **sens de synchro** et si les **suppressions** doivent se
    propager.
 6. **Synchroniser maintenant**.

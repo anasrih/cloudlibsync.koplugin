@@ -1,4 +1,5 @@
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
+local ButtonDialog = require("ui/widget/buttondialog")
 local InfoMessage = require("ui/widget/infomessage")
 local MultiInputDialog = require("ui/widget/multiinputdialog")
 local TextViewer = require("ui/widget/textviewer")
@@ -42,6 +43,11 @@ function CloudLibSync:addToMainMenu(menu_items)
                 end,
                 keep_menu_open = true,
                 callback = function() self:showServerDialog() end,
+            },
+            {
+                text = _("Import from Cloud storage…"),
+                keep_menu_open = true,
+                callback = function() self:importFromCloudStorage() end,
             },
             {
                 text_func = function()
@@ -207,16 +213,23 @@ function CloudLibSync:chooseLocalDir()
     UIManager:show(chooser)
 end
 
-function CloudLibSync:showServerDialog()
+-- prefill (optional): { url, remote_dir, user, pass } to show instead of the
+-- saved values — used by the Cloud storage import, so nothing is saved until
+-- the user reviews the fields and taps Save.
+function CloudLibSync:showServerDialog(prefill)
     local s = self.settings
+    local function value(key)
+        if prefill then return prefill[key] or "" end
+        return s:readSetting(key) or ""
+    end
     local dialog
     dialog = MultiInputDialog:new{
         title = _("WebDAV server"),
         fields = {
-            { hint = _("Server URL (e.g. https://webdav.example.com/)"), text = s:readSetting("url") or "" },
-            { hint = _("Remote folder (e.g. Books)"), text = s:readSetting("remote_dir") or "" },
-            { hint = _("Username"), text = s:readSetting("user") or "" },
-            { hint = _("Password"), text_type = "password", text = s:readSetting("pass") or "" },
+            { hint = _("Server URL (e.g. https://webdav.example.com/)"), text = value("url") },
+            { hint = _("Remote folder (e.g. Books)"), text = value("remote_dir") },
+            { hint = _("Username"), text = value("user") },
+            { hint = _("Password"), text_type = "password", text = value("pass") },
         },
         buttons = {
             {
@@ -238,6 +251,61 @@ function CloudLibSync:showServerDialog()
     }
     UIManager:show(dialog)
     dialog:onShowKeyboard()
+end
+
+-- KOReader's built-in Cloud storage plugin keeps its servers in
+-- settings/cloudstorage.lua under "cs_servers", each WebDAV entry as
+-- { type = "webdav", name, address, username, password, url = start folder }.
+-- Read it without going through that plugin (it may be disabled) and never
+-- write to it.
+local function readCloudStorageWebDavServers()
+    local path = DataStorage:getSettingsDir() .. "/cloudstorage.lua"
+    local ok, cs = pcall(LuaSettings.open, LuaSettings, path)
+    if not ok or not cs then return {} end
+    local servers = {}
+    for _i, server in ipairs(cs:readSetting("cs_servers") or {}) do
+        if type(server) == "table" and server.type == "webdav" and server.address then
+            table.insert(servers, server)
+        end
+    end
+    return servers
+end
+
+function CloudLibSync:importFromCloudStorage()
+    local servers = readCloudStorageWebDavServers()
+    if #servers == 0 then
+        UIManager:show(InfoMessage:new{ text = _("No WebDAV server found in Cloud storage.") })
+        return
+    end
+    local function import(server)
+        self:showServerDialog{
+            url = server.address,
+            remote_dir = (server.url or ""):gsub("^/+", ""):gsub("/+$", ""),
+            user = server.username,
+            pass = server.password,
+        }
+    end
+    if #servers == 1 then
+        import(servers[1])
+        return
+    end
+    local dialog
+    local buttons = {}
+    for _i, server in ipairs(servers) do
+        table.insert(buttons, {{
+            text = server.name and server.name ~= "" and server.name or server.address,
+            callback = function()
+                UIManager:close(dialog)
+                import(server)
+            end,
+        }})
+    end
+    table.insert(buttons, {{ text = _("Cancel"), callback = function() UIManager:close(dialog) end }})
+    dialog = ButtonDialog:new{
+        title = _("Import which server?"),
+        buttons = buttons,
+    }
+    UIManager:show(dialog)
 end
 
 -- True if a usable network is available right now. In silent (auto-sync)
