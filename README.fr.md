@@ -179,7 +179,14 @@ du plugin, pas de limite de durée (juste de nombre d'entrées).
   comme des fichiers ordinaires, pour qu'un dossier garde la même vignette
   sur tous les appareils. La détection se faisant sur la taille, remplacer
   une couverture par une image d'exactement la même taille ne sera pas
-  détecté.
+  détecté. Une couverture retirée du serveur n'est jamais supprimée en
+  local (la supprimer en local se propage toujours si la suppression est
+  activée). **Certains serveurs WebDAV ne listent jamais les fichiers
+  cachés** — notamment nginx avec `nginx-dav-ext-module` (ex.
+  OpenMediaVault) : les couvertures sont envoyées mais les autres
+  appareils ne les voient pas, elles ne seront donc pas téléchargées.
+  Nextcloud et les autres serveurs qui listent les fichiers cachés ne sont
+  pas concernés.
 
 ## Licence
 

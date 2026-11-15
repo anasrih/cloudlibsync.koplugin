@@ -115,7 +115,9 @@ function Fake:listFolder(rel)
         if path:sub(1, #prefix) == prefix then
             local rest = path:sub(#prefix + 1)
             local first, tail = rest:match("^([^/]+)(.*)$")
-            if first and not seen[first] then
+            -- hide_dotfiles: mimic servers (nginx-dav-ext-module) that never
+            -- list names starting with "." but still serve PUT/GET on them.
+            if first and not seen[first] and not (self.hide_dotfiles and first:sub(1, 1) == ".") then
                 seen[first] = true
                 out[#out + 1] = { name = first, is_dir = (tail ~= ""), size = (tail == "") and #content or nil }
             end
