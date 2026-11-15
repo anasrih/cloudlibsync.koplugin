@@ -249,4 +249,50 @@ H.test("failed re-download after local deletion, then allow_delete switched on: 
     s.cleanup()
 end)
 
+-- ---------- folder cover images (issue #2) ----------
+
+H.test("isIgnored: folder covers kept, other hidden files and .sdr ignored", function()
+    local ig = SyncEngine._isIgnored
+    for _, n in ipairs({ ".cover.png", ".cover.jpg", ".cover.jpeg", ".cover.webp",
+                         ".cover.gif", ".cover.bmp", ".cover.JPG", ".Cover.Png" }) do
+        H.falsy(ig(n, false), n .. " should be synced")
+    end
+    for _, n in ipairs({ ".hidden", ".DS_Store", ".cover", ".cover.txt", ".cover.png.part",
+                         ".covers.png", "book.sdr", ".cover.png.sdr" }) do
+        H.truthy(ig(n, false), n .. " should be ignored")
+    end
+    H.truthy(ig(".cover.png", true), "a directory named like a cover must be ignored")
+    H.falsy(ig("book.epub", false))
+end)
+
+H.test("local folder cover is uploaded, other hidden files and .sdr are not", function()
+    local s = sandbox()
+    H.write(s.dir .. "/SF/.cover.png", "IMG")
+    H.write(s.dir .. "/SF/.hidden", "H")
+    H.write(s.dir .. "/SF/book.sdr/metadata.epub.lua", "M")
+    H.write(s.dir .. "/.git/.cover.png", "G") -- inside a hidden folder: ignored
+    s.run()
+    H.eq(s.fake.files["Books/SF/.cover.png"], "IMG")
+    H.eq(s.fake:count("put:"), 1)
+    s.cleanup()
+end)
+
+H.test("remote folder cover is downloaded, other hidden remote files are not", function()
+    local s = sandbox()
+    s.fake.files["Books/SF/.cover.JPG"] = "IMG"
+    s.fake.files["Books/SF/.hidden"] = "H"
+    s.run()
+    H.eq(H.read(s.dir .. "/SF/.cover.JPG"), "IMG")
+    H.falsy(H.exists(s.dir .. "/SF/.hidden"))
+    s.cleanup()
+end)
+
+H.test("replaced folder cover (new size) is propagated", function()
+    local s = sandbox()
+    H.write(s.dir .. "/SF/.cover.png", "IMG1"); s.run()
+    H.write(s.dir .. "/SF/.cover.png", "IMAGE-2"); s.run()
+    H.eq(s.fake.files["Books/SF/.cover.png"], "IMAGE-2")
+    s.cleanup()
+end)
+
 H.run()

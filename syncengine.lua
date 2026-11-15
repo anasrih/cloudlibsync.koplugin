@@ -46,12 +46,26 @@ function SyncEngine.new(o)
     return self
 end
 
-local function isIgnored(name)
+-- Folder cover images (".cover.<ext>") are the only hidden files we sync:
+-- they give a folder its thumbnail in the file browser, and users want the
+-- same look on every device. Extension is matched case-insensitively.
+local COVER_EXTENSIONS = { png = true, jpg = true, jpeg = true, webp = true, gif = true, bmp = true }
+
+local function isFolderCover(name)
+    local ext = name:lower():match("^%.cover%.([%w]+)$")
+    return ext ~= nil and COVER_EXTENSIONS[ext] == true
+end
+
+-- is_dir: a directory is never treated as a cover, whatever its name.
+local function isIgnored(name, is_dir)
     if name == "." or name == ".." then return true end
-    if name:sub(1, 1) == "." then return true end
     if name:match("%.sdr$") then return true end -- KOReader sidecar metadata
+    if name:sub(1, 1) == "." then
+        return is_dir or not isFolderCover(name)
+    end
     return false
 end
+SyncEngine._isIgnored = isIgnored -- exposed for tests
 
 -- Recursive local scan -> { [relative_path] = { mtime=, size= } }
 -- failed is a shared table { flag=bool }: if walking a folder fails
@@ -69,11 +83,11 @@ local function scanLocal(dir, prefix, out, failed)
         return out, failed
     end
     for name in iter, dir_obj do
-        if not isIgnored(name) then
+        if name ~= "." and name ~= ".." then
             local full = dir .. "/" .. name
             local rel = (prefix == "") and name or (prefix .. "/" .. name)
             local attr = lfs.attributes(full)
-            if attr then
+            if attr and not isIgnored(name, attr.mode == "directory") then
                 if attr.mode == "directory" then
                     scanLocal(full, rel, out, failed)
                 else
@@ -101,7 +115,7 @@ local function scanRemote(webdav, remote_dir, prefix, out, failed)
         return out, failed
     end
     for _, e in ipairs(entries) do
-        if not isIgnored(e.name) then
+        if not isIgnored(e.name, e.is_dir) then
             local rel = (prefix == "") and e.name or (prefix .. "/" .. e.name)
             if e.is_dir then
                 scanRemote(webdav, remote_dir, rel, out, failed)
