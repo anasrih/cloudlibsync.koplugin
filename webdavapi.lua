@@ -187,8 +187,10 @@ function WebDavApi:listFolder(rel_path)
     local raw_entries = parsePropfindBody(resp_body)
     -- Compare paths only (no scheme://host), never using these strings as a
     -- Lua pattern (they can contain special characters such as "%" or "."
-    -- from encoding or from the name itself).
-    local self_path = stripHost(self:_buildUrl(rel_path)):gsub("/+$", "")
+    -- from encoding or from the name itself). Both sides are compared
+    -- decoded: hrefs are unescaped by parsePropfindBody, and servers don't
+    -- encode the way socket_url.escape does (case, unreserved characters).
+    local self_path = socket_url.unescape(stripHost(self:_buildUrl(rel_path))):gsub("/+$", "")
     local results = {}
     for _, e in ipairs(raw_entries) do
         local href_path = stripHost(e.href):gsub("/+$", "")
