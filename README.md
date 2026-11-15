@@ -165,6 +165,6 @@ on entry count).
 
 ## License
 
-MIT — see `LICENSE` (or add one before publishing if you haven't yet).
+MIT — see `LICENSE`.
 
 *[Version française du README : README.fr.md]*
