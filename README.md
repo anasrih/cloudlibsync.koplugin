@@ -168,7 +168,12 @@ on entry count).
   case-insensitive) are synced like regular files, so a folder keeps the
   same thumbnail on every device. Since change detection relies on size,
   replacing a cover with an image of exactly the same size won't be
-  detected.
+  detected. A cover removed from the server is never deleted locally
+  (deleting it locally still propagates if deletions are enabled).
+  **Some WebDAV servers never list hidden files** — notably nginx with
+  `nginx-dav-ext-module` (e.g. OpenMediaVault): covers are uploaded but
+  other devices can't see them, so they won't be downloaded. Nextcloud
+  and other servers that list hidden files are not affected.
 
 ## License
 

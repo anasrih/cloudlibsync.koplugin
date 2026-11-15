@@ -223,7 +223,24 @@ function SyncEngine:run(snapshot)
             new_snapshot_remote[rel] = snap_r
 
         elseif l and not r then
-            if sr then
+            if sr and isFolderCover(rel:match("[^/]+$")) then
+                -- Some servers never list dot-files in PROPFIND (e.g.
+                -- nginx-dav-ext-module skips every name starting with ".")
+                -- while still accepting PUT/GET on them. A cover we uploaded
+                -- is then invisible on the next run: "absent from the
+                -- listing" proves nothing, so never treat it as a remote
+                -- deletion (that would delete the local cover) nor re-upload
+                -- it on every run. Only a real local change is pushed.
+                if changedSince(l, sl) and self.direction ~= "download"
+                    and self:tryUpload(rel, local_path, remote_path, l, new_bad) then
+                    uploaded = uploaded + 1
+                    new_snapshot_local[rel] = l
+                    new_snapshot_remote[rel] = l
+                else
+                    new_snapshot_local[rel] = sl
+                    new_snapshot_remote[rel] = sr
+                end
+            elseif sr then
                 -- existed remotely before, now gone: remote deletion detected
                 if self.allow_delete and self.direction ~= "download" then
                     self.progress_cb("delete_local", rel)

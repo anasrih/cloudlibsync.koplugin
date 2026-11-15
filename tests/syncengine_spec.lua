@@ -295,4 +295,64 @@ H.test("replaced folder cover (new size) is propagated", function()
     s.cleanup()
 end)
 
+-- Servers that never list dot-files (nginx-dav-ext-module) but accept PUT.
+
+H.test("dot-hiding server + allow_delete=true: uploaded local cover is NOT deleted next runs", function()
+    local s = sandbox({ allow_delete = true })
+    s.fake.hide_dotfiles = true
+    H.write(s.dir .. "/SF/.cover.png", "IMG")
+    s.run(); s.run(); s.run()
+    H.eq(H.read(s.dir .. "/SF/.cover.png"), "IMG", "local cover deleted")
+    H.eq(s.fake.files["Books/SF/.cover.png"], "IMG")
+    s.cleanup()
+end)
+
+H.test("dot-hiding server: cover is uploaded once, not on every run", function()
+    local s = sandbox()
+    s.fake.hide_dotfiles = true
+    H.write(s.dir .. "/SF/.cover.png", "IMG")
+    s.run(); s.run(); s.run()
+    H.eq(s.fake:count("put:"), 1)
+    s.cleanup()
+end)
+
+H.test("dot-hiding server: a locally replaced cover (new size) is uploaded again", function()
+    local s = sandbox()
+    s.fake.hide_dotfiles = true
+    H.write(s.dir .. "/SF/.cover.png", "IMG1"); s.run(); s.run()
+    H.write(s.dir .. "/SF/.cover.png", "IMAGE-2"); s.run(); s.run()
+    H.eq(s.fake.files["Books/SF/.cover.png"], "IMAGE-2")
+    H.eq(s.fake:count("put:"), 2)
+    s.cleanup()
+end)
+
+H.test("cover deleted on the server + allow_delete=true: local cover kept, not re-uploaded", function()
+    local s = sandbox({ allow_delete = true })
+    H.write(s.dir .. "/SF/.cover.png", "IMG"); s.run()
+    s.fake.files["Books/SF/.cover.png"] = nil
+    s.run(); s.run()
+    H.eq(H.read(s.dir .. "/SF/.cover.png"), "IMG")
+    H.eq(s.fake:count("put:"), 1)
+    s.cleanup()
+end)
+
+H.test("cover deleted locally + allow_delete=true: remote cover deleted (unchanged behaviour)", function()
+    local s = sandbox({ allow_delete = true })
+    H.write(s.dir .. "/SF/.cover.png", "IMG"); s.run()
+    os.remove(s.dir .. "/SF/.cover.png")
+    s.run()
+    H.eq(s.fake.files["Books/SF/.cover.png"], nil)
+    s.cleanup()
+end)
+
+H.test("dot-hiding server: regular books still sync and deletions still propagate", function()
+    local s = sandbox({ allow_delete = true })
+    s.fake.hide_dotfiles = true
+    H.write(s.dir .. "/a.epub", "AAA"); s.run()
+    s.fake.files["Books/a.epub"] = nil
+    s.run()
+    H.falsy(H.exists(s.dir .. "/a.epub"), "remote deletion of a book must still propagate")
+    s.cleanup()
+end)
+
 H.run()
