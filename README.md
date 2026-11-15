@@ -162,6 +162,13 @@ on entry count).
   devices, better to use KOReader's native "Reading statistics" → "Cloud
   sync" plugin, built for that (syncs `.sqlite3` files), rather than
   including `.sdr` here.
+- Other hidden files and folders (name starting with `.`) are excluded
+  too, **except folder cover images**: `.cover.png`, `.cover.jpg`,
+  `.cover.jpeg`, `.cover.webp`, `.cover.gif` and `.cover.bmp` (extension
+  case-insensitive) are synced like regular files, so a folder keeps the
+  same thumbnail on every device. Since change detection relies on size,
+  replacing a cover with an image of exactly the same size won't be
+  detected.
 
 ## License
 

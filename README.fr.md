@@ -172,6 +172,14 @@ du plugin, pas de limite de durée (juste de nombre d'entrées).
   lecture entre appareils, il vaut mieux utiliser le plugin natif
   "Statistiques de lecture" → "Cloud sync" de KOReader, prévu pour ça
   (sync des `.sqlite3`), plutôt que d'inclure les `.sdr` ici.
+- Les autres fichiers et dossiers cachés (nom commençant par `.`) sont
+  aussi exclus, **sauf les images de couverture de dossier** :
+  `.cover.png`, `.cover.jpg`, `.cover.jpeg`, `.cover.webp`, `.cover.gif`
+  et `.cover.bmp` (extension insensible à la casse) sont synchronisées
+  comme des fichiers ordinaires, pour qu'un dossier garde la même vignette
+  sur tous les appareils. La détection se faisant sur la taille, remplacer
+  une couverture par une image d'exactement la même taille ne sera pas
+  détecté.
 
 ## Licence
 
