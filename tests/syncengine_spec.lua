@@ -151,28 +151,101 @@ H.test("conflict (changed on both sides) overwrites nothing", function()
 end)
 
 -- ---------------------------------------------------------------------
--- KNOWN BUGS (expected to fail today). Found while writing this harness.
--- A transfer that FAILS is still recorded in the snapshot as "synced".
--- On the next run the missing side then looks like a deletion, and with
--- allow_delete=true the engine deletes the good copy.
+-- A transfer that FAILS must not be recorded in the snapshot as "synced":
+-- otherwise, on the next run, the missing side looks like a deletion and,
+-- with allow_delete=true, the engine deletes the good copy.
 -- ---------------------------------------------------------------------
-H.bug("failed upload (413) + allow_delete=true must NOT delete the local file next run", function()
+H.test("failed upload (413) + allow_delete=true must NOT delete the local file next run", function()
     local s = sandbox({ allow_delete = true })
     s.fake.reject_413["big.cbz"] = true
     H.write(s.dir .. "/big.cbz", "BIGBIG")
     s.run()                       -- upload rejected
     s.run({ bypass_known_bad = true })
     H.truthy(H.exists(s.dir .. "/big.cbz"), "local book was deleted after a failed upload")
+    s.run()                       -- auto sync again: still skipped, still kept
+    H.truthy(H.exists(s.dir .. "/big.cbz"), "local book was deleted after a skipped upload")
+    H.eq(s.fake:count("del:"), 0)
     s.cleanup()
 end)
 
-H.bug("failed download + allow_delete=true must NOT delete the remote file next run", function()
+H.test("failed download + allow_delete=true must NOT delete the remote file next run", function()
     local s = sandbox({ allow_delete = true })
     s.fake.files["Books/new.epub"] = "NEW"
     s.fake.fail_get["new.epub"] = true
     s.run()                       -- download fails
     s.run()
     H.eq(s.fake.files["Books/new.epub"], "NEW", "remote book was deleted after a failed download")
+    H.eq(s.fake:count("del:"), 0)
+    s.cleanup()
+end)
+
+H.test("failed upload (network) + allow_delete=true: local kept, retried once network is back", function()
+    local s = sandbox({ allow_delete = true })
+    s.fake.fail_put["a.epub"] = true
+    H.write(s.dir .. "/a.epub", "AAA")
+    s.run()                       -- network error on PUT
+    s.run()                       -- still failing
+    H.truthy(H.exists(s.dir .. "/a.epub"), "local book was deleted after a failed upload")
+    s.fake.fail_put["a.epub"] = nil
+    s.run()                       -- network back
+    H.eq(s.fake.files["Books/a.epub"], "AAA")
+    s.cleanup()
+end)
+
+H.test("failed download is retried on the next run", function()
+    local s = sandbox()
+    s.fake.files["Books/new.epub"] = "NEW"
+    s.fake.fail_get["new.epub"] = true
+    s.run()
+    s.fake.fail_get["new.epub"] = nil
+    s.run()
+    H.eq(H.read(s.dir .. "/new.epub"), "NEW")
+    s.cleanup()
+end)
+
+H.test("failed upload of a MODIFIED file is retried on the next run", function()
+    local s = sandbox()
+    H.write(s.dir .. "/a.epub", "AAA"); s.run()
+    H.write(s.dir .. "/a.epub", "AAA-EDITED")
+    s.fake.fail_put["a.epub"] = true
+    s.run()
+    s.fake.fail_put["a.epub"] = nil
+    s.run()
+    H.eq(s.fake.files["Books/a.epub"], "AAA-EDITED")
+    s.cleanup()
+end)
+
+H.test("failed download of a MODIFIED remote file is retried on the next run", function()
+    local s = sandbox()
+    H.write(s.dir .. "/a.epub", "AAA"); s.run()
+    s.fake.files["Books/a.epub"] = "AAA-REMOTE-EDIT"
+    s.fake.fail_get["a.epub"] = true
+    s.run()
+    s.fake.fail_get["a.epub"] = nil
+    s.run()
+    H.eq(H.read(s.dir .. "/a.epub"), "AAA-REMOTE-EDIT")
+    s.cleanup()
+end)
+
+H.test("failed re-upload after remote deletion, then allow_delete switched on: local kept", function()
+    local s = sandbox()
+    H.write(s.dir .. "/a.epub", "AAA"); s.run()
+    s.fake.files["Books/a.epub"] = nil
+    s.fake.fail_put["a.epub"] = true
+    s.run()                       -- allow_delete=false: restore attempt fails
+    s.run({ allow_delete = true })
+    H.truthy(H.exists(s.dir .. "/a.epub"), "local book was deleted after a failed restore")
+    s.cleanup()
+end)
+
+H.test("failed re-download after local deletion, then allow_delete switched on: remote kept", function()
+    local s = sandbox()
+    H.write(s.dir .. "/a.epub", "AAA"); s.run()
+    os.remove(s.dir .. "/a.epub")
+    s.fake.fail_get["a.epub"] = true
+    s.run()                       -- allow_delete=false: restore attempt fails
+    s.run({ allow_delete = true })
+    H.eq(s.fake.files["Books/a.epub"], "AAA", "remote book was deleted after a failed restore")
     s.cleanup()
 end)
 

@@ -176,22 +176,37 @@ function SyncEngine:run(snapshot)
         local local_path = self.local_dir .. "/" .. rel
         local remote_path = (self.remote_dir .. "/" .. rel):gsub("^/", "")
 
+        -- Snapshot rule: an entry is only recorded as "synced" when both
+        -- sides really hold that version. A transfer that failed (network,
+        -- 413, skipped as known too large) or wasn't allowed by the
+        -- direction must NOT be recorded: otherwise, on the next run, the
+        -- missing copy looks like a deletion and, with allow_delete=true,
+        -- the good copy would be deleted.
         if l and r then
             -- exists on both sides
             local l_changed = changedSince(l, sl)
             local r_changed = changedSince(r, sr)
+            local snap_l, snap_r = l, r
             if l_changed and r_changed and sl and sr then
                 conflicts = conflicts + 1
                 logger.warn("CloudLibSync: conflict on", rel, "- both sides changed, no automatic action")
             elseif l_changed and self.direction ~= "download" then
-                if self:tryUpload(rel, local_path, remote_path, l, new_bad) then uploaded = uploaded + 1 end
+                if self:tryUpload(rel, local_path, remote_path, l, new_bad) then
+                    uploaded = uploaded + 1
+                else
+                    snap_l = sl -- keep the old reference: still "changed", retried next run
+                end
             elseif r_changed and self.direction ~= "upload" then
                 self.progress_cb("download", rel)
                 local ok = self.webdav:downloadFile(remote_path, local_path)
-                if ok then downloaded = downloaded + 1 end
+                if ok then
+                    downloaded = downloaded + 1
+                else
+                    snap_r = sr -- keep the old reference: still "changed", retried next run
+                end
             end
-            new_snapshot_local[rel] = l
-            new_snapshot_remote[rel] = r
+            new_snapshot_local[rel] = snap_l
+            new_snapshot_remote[rel] = snap_r
 
         elseif l and not r then
             if sr then
@@ -203,17 +218,20 @@ function SyncEngine:run(snapshot)
                     -- don't re-insert into the new snapshot: entry deleted
                 else
                     -- delete nothing: "restore" on the remote side if the
-                    -- direction allows it
-                    if self.direction ~= "download" then
-                        if self:tryUpload(rel, local_path, remote_path, l, new_bad) then uploaded = uploaded + 1 end
+                    -- direction allows it. If not restored, forget the
+                    -- entry: next run sees a plain new local file.
+                    if self.direction ~= "download"
+                        and self:tryUpload(rel, local_path, remote_path, l, new_bad) then
+                        uploaded = uploaded + 1
+                        new_snapshot_local[rel] = l
+                        new_snapshot_remote[rel] = l
                     end
-                    new_snapshot_local[rel] = l
-                    new_snapshot_remote[rel] = l
                 end
             else
                 -- new local file
-                if self.direction ~= "download" then
-                    if self:tryUpload(rel, local_path, remote_path, l, new_bad) then uploaded = uploaded + 1 end
+                if self.direction ~= "download"
+                    and self:tryUpload(rel, local_path, remote_path, l, new_bad) then
+                    uploaded = uploaded + 1
                     new_snapshot_local[rel] = l
                     new_snapshot_remote[rel] = l
                 end
@@ -227,22 +245,27 @@ function SyncEngine:run(snapshot)
                     self.webdav:deleteFile(remote_path)
                     deleted_remote = deleted_remote + 1
                 else
+                    -- delete nothing: "restore" on the local side if the
+                    -- direction allows it. If not restored, forget the
+                    -- entry: next run sees a plain new remote file.
                     if self.direction ~= "upload" then
                         self.progress_cb("download", rel)
-                        local ok = self.webdav:downloadFile(remote_path, local_path)
-                        if ok then downloaded = downloaded + 1 end
+                        if self.webdav:downloadFile(remote_path, local_path) then
+                            downloaded = downloaded + 1
+                            new_snapshot_local[rel] = r
+                            new_snapshot_remote[rel] = r
+                        end
                     end
-                    new_snapshot_local[rel] = r
-                    new_snapshot_remote[rel] = r
                 end
             else
                 -- new remote file
                 if self.direction ~= "upload" then
                     self.progress_cb("download", rel)
-                    local ok = self.webdav:downloadFile(remote_path, local_path)
-                    if ok then downloaded = downloaded + 1 end
-                    new_snapshot_local[rel] = r
-                    new_snapshot_remote[rel] = r
+                    if self.webdav:downloadFile(remote_path, local_path) then
+                        downloaded = downloaded + 1
+                        new_snapshot_local[rel] = r
+                        new_snapshot_remote[rel] = r
+                    end
                 end
             end
         end
